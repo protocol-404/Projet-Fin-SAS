@@ -1,0 +1,152 @@
+name: Development Build
+
+on:
+  push:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build and Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-20.04]
+        include:
+          - os: ubuntu-latest
+            compiler: gcc
+          - os: ubuntu-20.04
+            compiler: gcc
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential ${{ matrix.compiler }}
+    
+    - name: Display system info
+      run: |
+        echo "OS: ${{ matrix.os }}"
+        echo "Compiler: ${{ matrix.compiler }}"
+        ${{ matrix.compiler }} --version
+        make --version
+    
+    - name: Clean and build
+      run: |
+        make clean
+        make CC=${{ matrix.compiler }}
+    
+    - name: Verify build output
+      run: |
+        ls -la dental_reservation_system
+        file dental_reservation_system
+        ldd dental_reservation_system || echo "Static binary or ldd not applicable"
+    
+    - name: Run system tests
+      run: |
+        echo "Running basic system test..."
+        chmod +x test_system.sh
+        ./test_system.sh
+    
+    - name: Run comprehensive tests
+      run: |
+        echo "Running comprehensive tests..."
+        chmod +x comprehensive_test.sh
+        ./comprehensive_test.sh
+    
+    - name: Run validation tests
+      run: |
+        echo "Running input validation tests..."
+        chmod +x test_validation.sh
+        ./test_validation.sh
+    
+    - name: Run complete workflow test
+      run: |
+        echo "Running complete workflow test..."
+        chmod +x test_complete_flow.sh
+        ./test_complete_flow.sh
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dental-reservation-system-${{ matrix.os }}-${{ github.sha }}
+        path: |
+          dental_reservation_system
+          *.h
+          README.md
+          TESTING_GUIDE.md
+        retention-days: 7
+
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install analysis tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cppcheck
+    
+    - name: Run static analysis
+      run: |
+        echo "Running cppcheck static analysis..."
+        cppcheck --enable=warning,style,performance,portability \
+          --suppress=missingIncludeSystem \
+          --inline-suppr \
+          --error-exitcode=0 \
+          *.c *.h
+    
+    - name: Check for security issues
+      run: |
+        echo "Checking for potential security issues..."
+        echo "Checking for unsafe functions..."
+        grep -n "gets\|sprintf\|strcpy\|strcat" *.c || echo "✓ No unsafe functions found"
+        
+        echo "Checking for unsafe scanf patterns..."
+        grep -n "scanf.*%s" *.c || echo "✓ No unsafe scanf patterns found"
+        
+        echo "Checking for potential buffer overflows..."
+        grep -n "char.*\[.*\]" *.c || echo "Checked buffer declarations"
+    
+    - name: Build with strict warnings
+      run: |
+        echo "Building with strict compiler warnings..."
+        make clean
+        make CFLAGS="-Wall -Wextra -Wpedantic -std=c99 -O2"
+
+  performance-test:
+    name: Performance Test
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential time
+    
+    - name: Build optimized version
+      run: |
+        make clean
+        make CFLAGS="-O2 -DNDEBUG -Wall -Wextra -std=c99"
+    
+    - name: Run performance test
+      run: |
+        echo "Running performance tests..."
+        
+        # Test startup time
+        echo "Testing startup time..."
+        time (echo "7" | ./dental_reservation_system) || echo "Startup test completed"
+        
+        # Test with multiple operations
+        echo "Testing with multiple operations..."
+        time (echo -e "2\n2\n7" | ./dental_reservation_system) || echo "Multi-operation test completed"

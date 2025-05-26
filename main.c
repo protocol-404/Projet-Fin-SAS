@@ -1,11 +1,14 @@
-#include "reservation.h"
+#include "ui.h"
+#include "reservation_manager.h"
+#include "search_sort.h"
+#include "statistics.h"
 
 int main() {
     int choice;
 
     while (1) {
         displayMenu();
-        scanf("%d", &choice);
+        choice = getValidatedInteger("", 1, 7);
         
         switch (choice) {
             case 1:
@@ -29,14 +32,10 @@ int main() {
             case 7:
                 clearScreen();
                 displayLogo();
-                printf(GREEN "Thank you for using the Dental Appointment System!\n" RESET);
-                printf(GREEN "Goodbye!\n" RESET);
+                printCentered("Thank you for using the Dental Appointment System!", GREEN);
+                printCentered("Have a great day!", GREEN);
+                printCentered("Goodbye!", GREEN);
                 return 0;
-            default:
-                printf(RED "please try again.\n" RESET);
-                printf("press enter to continue...");
-                getchar();
-                getchar();
         }
     }
 

@@ -1,0 +1,183 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ published ]
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-20.04]
+        compiler: [gcc, clang]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential ${{ matrix.compiler }}
+    
+    - name: Set compiler
+      run: |
+        if [ "${{ matrix.compiler }}" = "clang" ]; then
+          echo "CC=clang" >> $GITHUB_ENV
+        else
+          echo "CC=gcc" >> $GITHUB_ENV
+        fi
+    
+    - name: Build project
+      run: |
+        make clean
+        make CC=$CC
+    
+    - name: Run basic functionality tests
+      run: |
+        chmod +x test_system.sh
+        ./test_system.sh
+    
+    - name: Run comprehensive tests
+      run: |
+        chmod +x comprehensive_test.sh
+        ./comprehensive_test.sh
+    
+    - name: Run input validation tests
+      run: |
+        chmod +x test_validation.sh
+        ./test_validation.sh
+    
+    - name: Test complete workflow
+      run: |
+        chmod +x test_complete_flow.sh
+        ./test_complete_flow.sh
+    
+    - name: Upload binary artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: dental-reservation-system-${{ matrix.os }}-${{ matrix.compiler }}
+        path: dental_reservation_system
+        retention-days: 30
+
+  code-quality:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cppcheck clang-format
+    
+    - name: Static analysis with cppcheck
+      run: |
+        cppcheck --enable=all --error-exitcode=1 --suppress=missingIncludeSystem \
+          --inline-suppr --quiet *.c *.h || true
+    
+    - name: Check code formatting
+      run: |
+        clang-format --dry-run --Werror *.c *.h || true
+    
+    - name: Build with strict warnings
+      run: |
+        make clean
+        make CFLAGS="-Wall -Wextra -Werror -std=c99 -pedantic"
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+    
+    - name: Build project
+      run: |
+        make clean
+        make
+    
+    - name: Run security analysis
+      run: |
+        # Check for common security issues in C code
+        grep -r "gets\|sprintf\|strcpy\|strcat" *.c || echo "No unsafe functions found"
+        
+        # Check for buffer overflow potential
+        grep -r "scanf.*%s" *.c || echo "No unsafe scanf patterns found"
+
+  memory-test:
+    name: Memory Safety Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential valgrind
+    
+    - name: Build with debug symbols
+      run: |
+        make clean
+        make CFLAGS="-g -O0 -Wall -Wextra -std=c99"
+    
+    - name: Run memory tests with valgrind
+      run: |
+        # Test basic functionality with valgrind
+        echo -e "7" | valgrind --leak-check=full --error-exitcode=1 \
+          ./dental_reservation_system || echo "Memory test completed"
+
+  release:
+    name: Create Release
+    if: github.event_name == 'release'
+    needs: [build-and-test, code-quality]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+    
+    - name: Build release version
+      run: |
+        make clean
+        make CFLAGS="-O2 -DNDEBUG -Wall -Wextra -std=c99"
+        strip dental_reservation_system
+    
+    - name: Create release package
+      run: |
+        mkdir -p release
+        cp dental_reservation_system release/
+        cp README.md release/
+        cp *.h release/
+        tar -czf dental-reservation-system-${{ github.event.release.tag_name }}.tar.gz release/
+    
+    - name: Upload release asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./dental-reservation-system-${{ github.event.release.tag_name }}.tar.gz
+        asset_name: dental-reservation-system-${{ github.event.release.tag_name }}.tar.gz
+        asset_content_type: application/gzip

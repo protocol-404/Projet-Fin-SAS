@@ -1,0 +1,62 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  release:
+    types: [published]
+
+jobs:
+  build-release:
+    name: Build Release Binaries
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-20.04]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+    
+    - name: Build optimized release
+      run: |
+        make clean
+        make CFLAGS="-O2 -DNDEBUG -Wall -Wextra -std=c99"
+        strip dental_reservation_system
+    
+    - name: Run release tests
+      run: |
+        chmod +x test_system.sh
+        ./test_system.sh
+    
+    - name: Package release
+      run: |
+        mkdir -p release-${{ matrix.os }}
+        cp dental_reservation_system release-${{ matrix.os }}/
+        cp README.md release-${{ matrix.os }}/
+        cp TESTING_GUIDE.md release-${{ matrix.os }}/
+        tar -czf dental-reservation-system-${{ matrix.os }}.tar.gz release-${{ matrix.os }}/
+    
+    - name: Upload release artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: dental-reservation-system-${{ matrix.os }}
+        path: dental-reservation-system-${{ matrix.os }}.tar.gz
+        retention-days: 90
+    
+    - name: Upload to release
+      if: github.event_name == 'release'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./dental-reservation-system-${{ matrix.os }}.tar.gz
+        asset_name: dental-reservation-system-${{ matrix.os }}.tar.gz
+        asset_content_type: application/gzip

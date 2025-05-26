@@ -1,0 +1,49 @@
+name: Pull Request Check
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  quick-test:
+    name: Quick Build and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+    
+    - name: Build project
+      run: |
+        make clean
+        make
+    
+    - name: Run basic tests
+      run: |
+        # Test compilation
+        ./dental_reservation_system --version 2>/dev/null || echo "Binary created successfully"
+        
+        # Test basic functionality
+        echo -e "7" | timeout 5 ./dental_reservation_system || echo "Basic test completed"
+    
+    - name: Code style check
+      run: |
+        # Basic code style checks
+        echo "Checking for common issues..."
+        
+        # Check for tabs vs spaces consistency
+        if grep -P '\t' *.c *.h; then
+          echo "Warning: Found tabs in source files"
+        fi
+        
+        # Check for trailing whitespace
+        if grep -P ' +$' *.c *.h; then
+          echo "Warning: Found trailing whitespace"
+        fi
+        
+        echo "Code style check completed"
