@@ -3,3 +3,24 @@ reservations.txt
 main1.c
 .vscode
 test
+
+# Build artifacts
+*.o
+dental_reservation_system
+debug_name
+
+# Temporary files
+*.tmp
+*.temp
+
+# IDE files
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test output files
+test_output.txt
